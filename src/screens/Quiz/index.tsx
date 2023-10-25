@@ -27,6 +27,7 @@ import Animated, {
 import { ProgressBar } from "../../components/ProgressBar";
 import { THEME } from "../../styles/theme";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { OverlayFeedback } from "../../components/OverlayFeedback";
 
 interface Params {
   id: string;
@@ -41,6 +42,7 @@ export function Quiz() {
   const [points, setPoints] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [statusReply, setStatusReply] = useState(0);
   const [quiz, setQuiz] = useState<QuizProps>({} as QuizProps);
   const [alternativeSelected, setAlternativeSelected] = useState<null | number>(
     null
@@ -91,8 +93,11 @@ export function Quiz() {
     }
 
     if (quiz.questions[currentQuestion].correct === alternativeSelected) {
+      setStatusReply(1);
       setPoints((prevState) => prevState + 1);
+      handleNextQuestion();
     } else {
+      setStatusReply(2);
       shakeAnimation();
     }
 
@@ -117,8 +122,13 @@ export function Quiz() {
 
   function shakeAnimation() {
     shake.value = withSequence(
-      withTiming(2, { duration: 100, easing: Easing.bounce }),
-      withTiming(0)
+      withTiming(3, { duration: 100, easing: Easing.bounce }),
+      withTiming(0, undefined, (finished) => {
+        "worklet";
+        if (finished) {
+          runOnJS(handleNextQuestion)();
+        }
+      })
     );
   }
 
@@ -128,8 +138,8 @@ export function Quiz() {
         {
           translateX: interpolate(
             shake.value,
-            [0, 0.5, 1, 1.5, 2],
-            [0, -10, 0, 10, 0]
+            [0, 0.5, 1, 1.5, 2, 2.5, 3],
+            [0, -15, 0, 15, 0, -15, 0]
           ),
         },
       ],
@@ -171,7 +181,7 @@ export function Quiz() {
   });
 
   const onPan = Gesture.Pan()
-    .activateAfterLongPress(70)
+    .activateAfterLongPress(75)
     .onUpdate((event) => {
       const moveToLeft = event.translationX < 0;
       if (moveToLeft) cardPosition.value = event.translationX;
@@ -201,18 +211,13 @@ export function Quiz() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (quiz.questions) {
-      handleNextQuestion();
-    }
-  }, [points]);
-
   if (isLoading) {
     return <Loading />;
   }
 
   return (
     <View style={styles.container}>
+      <OverlayFeedback status={statusReply} />
       <Animated.View style={fixedProgressBarStyles}>
         <Text style={styles.title}>{quiz.title}</Text>
         <ProgressBar
@@ -241,6 +246,7 @@ export function Quiz() {
               question={quiz.questions[currentQuestion]}
               alternativeSelected={alternativeSelected}
               setAlternativeSelected={setAlternativeSelected}
+              onUnmount={() => setStatusReply(0)}
             />
           </Animated.View>
         </GestureDetector>
