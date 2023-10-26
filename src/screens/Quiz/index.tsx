@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { Alert, BackHandler, Text, View } from "react-native";
 
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { styles } from "./styles";
 
@@ -13,6 +14,9 @@ import { Question } from "../../components/Question";
 import { QuizHeader } from "../../components/QuizHeader";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { OutlineButton } from "../../components/OutlineButton";
+import { OverlayFeedback } from "../../components/OverlayFeedback";
+import { ProgressBar } from "../../components/ProgressBar";
+
 import Animated, {
   Easing,
   Extrapolate,
@@ -24,10 +28,11 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { ProgressBar } from "../../components/ProgressBar";
+
+import { Audio } from "expo-av";
+import * as Haptics from "expo-haptics";
+
 import { THEME } from "../../styles/theme";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { OverlayFeedback } from "../../components/OverlayFeedback";
 
 interface Params {
   id: string;
@@ -57,6 +62,16 @@ export function Quiz() {
   const route = useRoute();
   const { id } = route.params as Params;
 
+  async function playSound(isCorrect: boolean) {
+    const file = isCorrect
+      ? require("../../assets/correct.mp3")
+      : require("../../assets/wrong.mp3");
+
+    const { sound } = await Audio.Sound.createAsync(file, { shouldPlay: true });
+    await sound.setPositionAsync(0);
+    await sound.playAsync();
+  }
+
   function handleSkipConfirm() {
     Alert.alert("Pular", "Deseja realmente pular a questão?", [
       { text: "Sim", onPress: () => handleNextQuestion() },
@@ -79,7 +94,7 @@ export function Quiz() {
     });
   }
 
-  function handleNextQuestion() {
+  async function handleNextQuestion() {
     if (currentQuestion < quiz.questions.length - 1) {
       setCurrentQuestion((prevState) => prevState + 1);
     } else {
@@ -93,10 +108,13 @@ export function Quiz() {
     }
 
     if (quiz.questions[currentQuestion].correct === alternativeSelected) {
-      setStatusReply(1);
       setPoints((prevState) => prevState + 1);
+
+      await playSound(true);
+      setStatusReply(1);
       handleNextQuestion();
     } else {
+      await playSound(false);
       setStatusReply(2);
       shakeAnimation();
     }
@@ -120,7 +138,9 @@ export function Quiz() {
     return true;
   }
 
-  function shakeAnimation() {
+  async function shakeAnimation() {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
     shake.value = withSequence(
       withTiming(3, { duration: 100, easing: Easing.bounce }),
       withTiming(0, undefined, (finished) => {
@@ -209,6 +229,14 @@ export function Quiz() {
     const quizSelected = QUIZ.filter((item) => item.id === id)[0];
     setQuiz(quizSelected);
     setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      handleStop
+    );
+    return () => backHandler.remove();
   }, []);
 
   if (isLoading) {
