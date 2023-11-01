@@ -94,7 +94,7 @@ export function Quiz() {
     });
   }
 
-  async function handleNextQuestion() {
+  function handleNextQuestion() {
     if (currentQuestion < quiz.questions.length - 1) {
       setCurrentQuestion((prevState) => prevState + 1);
     } else {
@@ -112,7 +112,6 @@ export function Quiz() {
 
       await playSound(true);
       setStatusReply(1);
-      handleNextQuestion();
     } else {
       await playSound(false);
       setStatusReply(2);
@@ -224,6 +223,10 @@ export function Quiz() {
       ],
     };
   });
+
+  useEffect(() => {
+    if (statusReply === 1) handleNextQuestion();
+  }, [statusReply]);
 
   useEffect(() => {
     const quizSelected = QUIZ.filter((item) => item.id === id)[0];
